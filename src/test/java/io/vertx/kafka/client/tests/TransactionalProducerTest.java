@@ -45,7 +45,7 @@ import io.vertx.kafka.client.producer.KafkaWriteStream;
 public class TransactionalProducerTest extends KafkaClusterTestBase {
 
   private Vertx vertx;
-  private KafkaWriteStream<String, String> producer;
+//  private KafkaWriteStream<String, String> producer;
 
   @BeforeClass
   public static void setUp() throws IOException {
@@ -60,12 +60,25 @@ public class TransactionalProducerTest extends KafkaClusterTestBase {
 
   @After
   public void afterTest(TestContext ctx) {
-    close(ctx, producer);
+//    close(ctx, producer);
     vertx.close().onComplete(ctx.asyncAssertSuccess());
   }
 
-  @Before
-  public void init(TestContext ctx) {
+//  @Before
+//  public void init(TestContext ctx) {
+//    final Properties config = kafkaCluster.useTo().getProducerProperties("testTransactional_producer");
+//    config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+//    config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+//    config.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, "producer-1");
+//    config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+//    config.put(ProducerConfig.ACKS_CONFIG, "all");
+//
+//    producer = producer(Vertx.vertx(), config);
+//    producer.exceptionHandler(ctx::fail);
+//  }
+
+  @Test
+  public void producedRecordsAreSeenAfterTheyHaveBeenCommitted(TestContext ctx) {
     final Properties config = kafkaCluster.useTo().getProducerProperties("testTransactional_producer");
     config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
     config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
@@ -73,12 +86,9 @@ public class TransactionalProducerTest extends KafkaClusterTestBase {
     config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
     config.put(ProducerConfig.ACKS_CONFIG, "all");
 
-    producer = producer(Vertx.vertx(), config);
+    KafkaWriteStream<String, String> producer = producer(Vertx.vertx(), config);
     producer.exceptionHandler(ctx::fail);
-  }
 
-  @Test
-  public void producedRecordsAreSeenAfterTheyHaveBeenCommitted(TestContext ctx) {
     final String topicName = "transactionalProduce";
     int numMessages = 1000;
 
@@ -97,6 +107,7 @@ public class TransactionalProducerTest extends KafkaClusterTestBase {
     });
     consumer.subscribe(Collections.singleton(topicName));
 
+
     producer.initTransactions().onComplete(ctx.asyncAssertSuccess());
     producer.beginTransaction().onComplete(ctx.asyncAssertSuccess());
     for (int i = 0; i <= numMessages; i++) {
@@ -104,13 +115,21 @@ public class TransactionalProducerTest extends KafkaClusterTestBase {
       producer.write(record).onComplete(ctx.asyncAssertSuccess());
     }
     producer.commitTransaction().onComplete(ctx.asyncAssertSuccess());
+    close(ctx, producer);
   }
 
   @Test
   public void abortTransactionKeepsTopicEmpty(TestContext ctx) {
     final String topicName = "transactionalProduceAbort";
     final Async done = ctx.async();
+    final Properties config = kafkaCluster.useTo().getProducerProperties("testTransactional_producer");
+    config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+    config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+    config.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, "producer-1");
+    config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+    config.put(ProducerConfig.ACKS_CONFIG, "all");
 
+    KafkaWriteStream<String, String> producer = producer(Vertx.vertx(), config);
     producer.initTransactions().onComplete(ctx.asyncAssertSuccess());
     producer.beginTransaction().onComplete(ctx.asyncAssertSuccess());
     final ProducerRecord<String, String> record_0 = createRecord(topicName, 0);
@@ -128,6 +147,15 @@ public class TransactionalProducerTest extends KafkaClusterTestBase {
 
   @Test
   public void transactionHandlingFailsIfInitWasNotCalled(TestContext ctx) {
+    final Properties config = kafkaCluster.useTo().getProducerProperties("testTransactional_producer");
+    config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+    config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+    config.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, "producer-1");
+    config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+    config.put(ProducerConfig.ACKS_CONFIG, "all");
+
+    KafkaWriteStream<String, String> producer = producer(Vertx.vertx(), config);
+
     producer.beginTransaction().onComplete(ctx.asyncAssertFailure(cause -> {
       ctx.assertTrue(cause instanceof IllegalStateException);
     }));
@@ -137,6 +165,7 @@ public class TransactionalProducerTest extends KafkaClusterTestBase {
     producer.abortTransaction().onComplete(ctx.asyncAssertFailure(cause -> {
       ctx.assertTrue(cause instanceof IllegalStateException);
     }));
+    close(ctx, producer);
   }
 
   @Test
@@ -150,6 +179,7 @@ public class TransactionalProducerTest extends KafkaClusterTestBase {
     nonTransactionalProducer.initTransactions().onComplete(ctx.asyncAssertFailure(cause -> {
       ctx.assertTrue(cause instanceof IllegalStateException);
     }));
+    close(ctx, nonTransactionalProducer);
   }
 
   private <K, V> KafkaReadStream<K, V> consumer(final String topicName) {
